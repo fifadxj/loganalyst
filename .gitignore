@@ -1,0 +1,9 @@
+#Eclipse-specific
+.settings/
+.pydevproject
+.project
+bin/
+
+logs/
+results/
+*.pyc
