@@ -24,7 +24,7 @@ def file_exist(file_name):
 def linux_grep_to_file(key, input_file, output_file):
     #full_output_path = os.path.abspath(output_file)
     remove_file(output_file)
-    grep_cmd = 'egrep "{key}" {inputFile} >> {outputFile}'.format(key = key, inputFile = input_file, outputFile = output_file)
+    grep_cmd = 'egrep "{key}" {inputFile} >> "{outputFile}"'.format(key = key, inputFile = input_file, outputFile = output_file)
     p = subprocess.Popen(grep_cmd, stdout=subprocess.PIPE, shell=True)
     p.wait()
 
