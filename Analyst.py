@@ -106,11 +106,14 @@ class LogSet:
     def __build_grep_result_file_name(self, key, file_name_prefix):
         return 'results/grep__{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix)
     
-    def grep_by_key(self, key):
+    def grep_by_key(self, key, result_key = None):
         self.__unzip_if_need()
         logger.debug('grep start: ' + datetime.datetime.now().isoformat())
         
-        grep_result_file_path = self.__build_grep_result_file_name(key, self.meta.file_name_prefix)
+        if not result_key:
+            result_key = key
+            
+        grep_result_file_path = self.__build_grep_result_file_name(result_key, self.meta.file_name_prefix)
         Utils.linux_grep_to_file(key, self.meta.file_path_pattern, grep_result_file_path)
                 
         logger.debug('grep done: ' + datetime.datetime.now().isoformat())
@@ -161,7 +164,8 @@ class FormFieldMatcher(Matcher):
     def __init__(self, field):
         self.field = field
         #  merId=.*?(?=&)|merId=.*
-        expr = '{field}=.*?(?=&)|{field}=.*'.format(field=field)
+        #  {field}=.*?(?=&)|{field}=.*
+        expr = field + '=[^}&]*'
         Matcher.__init__(self, expr)
 
 class JsonFieldMatcher(Matcher):
@@ -209,7 +213,6 @@ class KeySearchAnalyst(Analyst):
         
     def execute(self, key):
         result_file_name = self.log_set.grep_by_key(key)
-        results = []
         
         if self.print_out:
             #Utils.print_file(grep_result_file_path)
@@ -217,8 +220,41 @@ class KeySearchAnalyst(Analyst):
                 for line in f:
                     line = line.rstrip("\r\n")
                     print line
-               
-        return results
+
+class OrderSessionAnalyst(Analyst):
+    def __init__(self, meta_for_key, metas_for_session, print_out=True):
+        self.log_set_for_key = LogSet(meta_for_key)
+        self.log_sets_for_session = []
+        for meta_for_session in metas_for_session:
+            log_set_for_session = LogSet(meta_for_session)
+            self.log_sets_for_session.append(log_set_for_session)
+        self.print_out = print_out
+        
+    def execute(self, key):
+        result_file_name = self.log_set_for_key.grep_by_key(key)
+        
+        session_matcher = LogSessionIdentifierMatcher()
+        session_ids = set()
+        with open(result_file_name, mode='r') as f:
+            catch_query_request = False
+            for line in f:
+                line = line.rstrip("\r\n")
+                if (line.find('<POST:/api/Query.action') != -1):
+                    if catch_query_request:
+                        continue
+                    else:
+                        catch_query_request = True
+
+                session_id = session_matcher.match(line)
+                if session_id:
+                    session_ids.add(session_id)
+        
+        print('found sessions: ' + repr(session_ids))
+        for id in session_ids:      
+            result_file_name = self.log_set_for_key.grep_by_key(id, key + '-' + id)
+            if self.print_out:
+                Utils.print_file(result_file_name)
+        
             
 class RequestFieldsAnalyst(Analyst):
     def __init__(self, meta, fields, print_out=True):
