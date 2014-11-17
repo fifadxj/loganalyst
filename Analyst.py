@@ -104,7 +104,7 @@ class LogSet:
         self.meta = meta
     
     def __build_grep_result_file_name(self, key, file_name_prefix):
-        return 'results/grep__[{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix)
+        return 'results/grep__{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix)
     
     def grep_by_key(self, key):
         self.__unzip_if_need()
