@@ -5,6 +5,12 @@ import sys
 import Utils
 from Utils import logger
 
+
+KEYWORD_MAP = {
+               'UpopBiz.log': [('<POST:', 'form'), ('send to acp', 'json')], 
+               'upop-web.log': [('Browers agent=', 'json_array'), ('send to acp', 'json')]
+               }
+
 '''
 example (logs/upop.log.20141111*):
 
@@ -16,6 +22,7 @@ file_path_prefix = "logs/upop.log.20141111"
 file_path_pattern = "logs/upop.log.20141111*"
 '''
 class LogSetMeta:
+    '''
     @staticmethod
     def new_upop_web(date, dir_path='web/'):
         return LogSetMeta(dir_path, 'upop-web.log', date)
@@ -25,6 +32,7 @@ class LogSetMeta:
     @staticmethod
     def old_upop_biz(date, dir_path='web/'):
         return LogSetMeta(dir_path, 'UpopBiz.log', date)
+    '''
     
     @staticmethod
     def create_from_path_prefix(path):
@@ -48,12 +56,8 @@ class LogSetMeta:
     def create(file_base_name, date, dir_path):
         return LogSetMeta(dir_path, file_base_name, date)
         
-    KEYWORD_MAP = {
-                   'UpopBiz.log': [('<POST:', 'form'), ('send to acp', 'json')], 
-                   'upop-web.log': [('Browers agent=', 'json_array'), ('send to acp', 'json')]
-                   }
     def is_line_need_process(self, line):
-        keywords = LogSetMeta.KEYWORD_MAP[self.file_base_name]
+        keywords = KEYWORD_MAP[self.file_base_name]
         if keywords is not None:
             for (key, fmt) in keywords:
                 if line.find(key) != -1:
@@ -62,7 +66,7 @@ class LogSetMeta:
         return False
     
     def build_field_matcher(self, field, line):
-        keywords = LogSetMeta.KEYWORD_MAP[self.file_base_name]
+        keywords = KEYWORD_MAP[self.file_base_name]
         if keywords is not None:
             for (key, fmt) in keywords:
                 if line.find(key) != -1:
@@ -104,6 +108,7 @@ class LogSet:
         self.meta = meta
     
     def __build_grep_result_file_name(self, key, file_name_prefix):
+        Utils.truncate(key, 30)
         return 'results/grep__{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix)
     
     def grep_by_key(self, key, result_key = None):
@@ -128,7 +133,7 @@ class LogSet:
         elif (self.__is_exist()):
             logger.debug("log files are already unzipped")
         else:
-            logger.debug('no log files')
+            logger.error('no log files')
             sys.exit(1)
     
     def __is_unzipped(self):
@@ -236,14 +241,14 @@ class OrderSessionAnalyst(Analyst):
         session_matcher = LogSessionIdentifierMatcher()
         session_ids = set()
         with open(result_file_name, mode='r') as f:
-            catch_query_request = False
+            query_request_catched = False
             for line in f:
                 line = line.rstrip("\r\n")
                 if (line.find('<POST:/api/Query.action') != -1):
-                    if catch_query_request:
+                    if query_request_catched:
                         continue
                     else:
-                        catch_query_request = True
+                        query_request_catched = True
 
                 session_id = session_matcher.match(line)
                 if session_id:
@@ -253,6 +258,7 @@ class OrderSessionAnalyst(Analyst):
         for id in session_ids:      
             result_file_name = self.log_set_for_key.grep_by_key(id, key + '-' + id)
             if self.print_out:
+                print('================[' + id + ']===============')
                 Utils.print_file(result_file_name)
         
             
@@ -266,7 +272,11 @@ class RequestFieldsAnalyst(Analyst):
     def __analyst(self, results):
         filtered = set()
         for result in results:
-            fields = ['[' + i + ']' if i else "[]" for i in result['fields']]
+            def format_field(field_text):
+                field_text = '[' + field_text + ']' if field_text else "[]"
+                return field_text.ljust(30)
+                
+            fields = [format_field(i) for i in result['fields']]
             #'[' + result['action'] + '] ' + 
             text = ' '.join(fields)
             filtered.add(text)
@@ -299,6 +309,7 @@ class RequestFieldsAnalyst(Analyst):
             Utils.print_file(file_name)
        
     def __build_analyst_result_file_name(self, key, file_name_prefix):
+        Utils.truncate(key, 30)
         return 'results/analyst__{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix)   
 
     def execute(self, key): 

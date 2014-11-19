@@ -1,12 +1,14 @@
 from Analyst import *
 from optparse import OptionParser
         
-usage = "python field_search.py <keyword> <file_path_prefix> [-q]"
+usage = "python field_search.py <keyword> <file_path_prefix> [-q] [-s]"
 parser = OptionParser(usage=usage)
 parser.set_defaults(print_out=True)
+parser.set_defaults(for_session=False)
 #parser.add_option("--key", metavar='KEY', dest="key", help="keyword")
-#parser.add_option("--file", metavar='FILE', dest="file", help="log file name")
+#parser.add_option("--s", metavar='SESSION_PATHS', dest="session_paths", help="logs of this session")
 parser.add_option("-q", action="store_false", dest="print_out", help="don't print out result")
+parser.add_option("-s", action="store_true", dest="for_session", help="get all logs of this session")
 (options, args) = parser.parse_args()
 
 #print('options: ' + repr(options))
@@ -18,6 +20,20 @@ if len(args) != 2:
 key = args[0]
 path = args[1]
 
-meta = LogSetMeta.create_from_path_prefix(path)
-analyst = KeySearchAnalyst(meta, options.print_out)
-analyst.execute(key)
+
+SAME_SESSION_MAP = {
+                    'UpopBiz.log': ['UpopBiz.log', 'UpopWeb.log'],
+                    'upop-web.log': ['upop-web.log']
+                    }
+
+if (options.for_session):
+    meta_for_key = LogSetMeta.create_from_path_prefix(path)
+    metas_for_session = [LogSetMeta.create_from_path_prefix(s_path) for s_path in SAME_SESSION_MAP[meta_for_key.file_base_name]]
+        
+    analyst = OrderSessionAnalyst(meta_for_key, metas_for_session, options.print_out)
+    analyst.execute(key)
+else:
+    key_meta = LogSetMeta.create_from_path_prefix(path)
+    upop_web_meta = LogSetMeta.create_from_path_prefix(path)
+    analyst = KeySearchAnalyst(key_meta, options.print_out)
+    analyst.execute(key)

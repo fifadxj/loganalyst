@@ -51,4 +51,6 @@ def persist(file_name, lines):
         for line in lines:
             f.write(line + '\n')
             
-    
+def truncate(key, max, append_to_end='...'):
+    return key if len(key) <= max else key[:max] + append_to_end
+      
