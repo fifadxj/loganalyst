@@ -28,7 +28,7 @@ SAME_SESSION_MAP = {
 
 if (options.for_session):
     meta_for_key = LogSetMeta.create_from_path_prefix(path)
-    metas_for_session = [LogSetMeta.create_from_path_prefix(s_path) for s_path in SAME_SESSION_MAP[meta_for_key.file_base_name]]
+    metas_for_session = [LogSetMeta(meta_for_key.dir_path, s_path, meta_for_key.date) for s_path in SAME_SESSION_MAP[meta_for_key.file_base_name]]
         
     analyst = OrderSessionAnalyst(meta_for_key, metas_for_session, options.print_out)
     analyst.execute(key)
