@@ -74,7 +74,7 @@ class LogSet:
         self.meta = meta
     
     def __build_grep_result_file_name(self, key, file_name_prefix):
-        Utils.truncate(key, 30)
+        key = Utils.truncate(key, 30)
         return 'results/grep__{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix)
     
     def grep_by_key(self, key, result_key = None):
@@ -252,7 +252,7 @@ class OrderSessionAnalyst(Analyst):
             Utils.print_file(file_name)
         
     def __build_analyst_result_file_name(self, key, file_name_prefix):
-        Utils.truncate(key, 30)
+        key = Utils.truncate(key, 30)
         return 'results/analyst_session__{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix) 
 
             
@@ -301,7 +301,7 @@ class RequestFieldsAnalyst(Analyst):
             Utils.print_file(file_name)
        
     def __build_analyst_result_file_name(self, key, file_name_prefix):
-        Utils.truncate(key, 30)
+        key = Utils.truncate(key, 30)
         return 'results/analyst__{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix)   
 
     def execute(self, key): 
