@@ -22,18 +22,6 @@ file_path_prefix = "logs/upop.log.20141111"
 file_path_pattern = "logs/upop.log.20141111*"
 '''
 class LogSetMeta:
-    '''
-    @staticmethod
-    def new_upop_web(date, dir_path='web/'):
-        return LogSetMeta(dir_path, 'upop-web.log', date)
-    @staticmethod
-    def old_upop_web(date, dir_path=''):
-        return LogSetMeta(dir_path, 'UpopWeb.log', date)
-    @staticmethod
-    def old_upop_biz(date, dir_path='web/'):
-        return LogSetMeta(dir_path, 'UpopBiz.log', date)
-    '''
-    
     @staticmethod
     def create_from_path_prefix(path):
         if path.find('.log') == -1:
@@ -51,28 +39,6 @@ class LogSetMeta:
         date = path[(file_name_prefix_end_index + 2) :]
         
         return LogSetMeta(dir_path, file_base_name, date)
-    
-    @staticmethod
-    def create(file_base_name, date, dir_path):
-        return LogSetMeta(dir_path, file_base_name, date)
-        
-    def is_line_need_process(self, line):
-        keywords = KEYWORD_MAP[self.file_base_name]
-        if keywords is not None:
-            for (key, fmt) in keywords:
-                if line.find(key) != -1:
-                    return True
-
-        return False
-    
-    def build_field_matcher(self, field, line):
-        keywords = KEYWORD_MAP[self.file_base_name]
-        if keywords is not None:
-            for (key, fmt) in keywords:
-                if line.find(key) != -1:
-                    return Matcher.create_field_matcher(fmt, field)
-
-        return None
         
     def __init__(self, dir_path, file_base_name, date):
         self.dir_path = dir_path
@@ -113,7 +79,7 @@ class LogSet:
     
     def grep_by_key(self, key, result_key = None):
         self.__unzip_if_need()
-        logger.debug('grep start: ' + datetime.datetime.now().isoformat())
+        logger.debug('grep start: ' + self.meta.file_name_prefix)
         
         if not result_key:
             result_key = key
@@ -121,19 +87,19 @@ class LogSet:
         grep_result_file_path = self.__build_grep_result_file_name(result_key, self.meta.file_name_prefix)
         Utils.linux_grep_to_file(key, self.meta.file_path_pattern, grep_result_file_path)
                 
-        logger.debug('grep done: ' + datetime.datetime.now().isoformat())
+        logger.debug('grep done: ' + self.meta.file_name_prefix)
         
         return grep_result_file_path
 
     def __unzip_if_need(self):
         if (self.__is_unzipped()):
-            logger.debug("unzip start: " + datetime.datetime.now().isoformat())
+            logger.debug("unzip start: " + self.meta.file_name_prefix)
             Utils.linux_unzip_file(self.meta.file_path_pattern)
-            logger.debug('unzip done: ' + datetime.datetime.now().isoformat())
+            logger.debug('unzip done: ' + self.meta.file_name_prefix)
         elif (self.__is_exist()):
-            logger.debug("log files are already unzipped")
+            logger.debug("log files are already unzipped: " + self.meta.file_name_prefix)
         else:
-            logger.error('no log files')
+            logger.error('no log files: ' + self.meta.file_name_prefix)
             sys.exit(1)
     
     def __is_unzipped(self):
@@ -141,6 +107,24 @@ class LogSet:
     
     def __is_exist(self):
         return Utils.file_pattern_exist(self.meta.file_path_pattern)
+    
+    def is_request_log(self, line):
+        keywords = KEYWORD_MAP[self.meta.file_base_name]
+        if keywords is not None:
+            for (key, fmt) in keywords:
+                if line.find(key) != -1:
+                    return True
+
+        return False
+    
+    def build_field_matcher(self, field, line):
+        keywords = KEYWORD_MAP[self.meta.file_base_name]
+        if keywords is not None:
+            for (key, fmt) in keywords:
+                if line.find(key) != -1:
+                    return Matcher.create_field_matcher(fmt, field)
+
+        return None
 
 class Matcher:
     def __init__(self, expr):
@@ -191,19 +175,6 @@ class LogSessionIdentifierMatcher(Matcher):
         #expr = '\[([^\]]*)'
         Matcher.__init__(self, expr)
         
-class LineProcessor:
-    def __init__(self):
-        pass
-        
-    def process(self, line, matchers):
-        results = []
-        for matcher in matchers:
-            if matcher:
-                result = matcher.match(line)
-                results.append(result)
-
-        return results
-        
 class Analyst:
     def __init__(self):
         pass
@@ -239,45 +210,66 @@ class OrderSessionAnalyst(Analyst):
         result_file_name = self.log_set_for_key.grep_by_key(key)
         
         session_matcher = LogSessionIdentifierMatcher()
-        session_ids = set()
+        session_ids = []
         with open(result_file_name, mode='r') as f:
             query_request_catched = False
             for line in f:
                 line = line.rstrip("\r\n")
-                if (line.find('<POST:/api/Query.action') != -1):
-                    if query_request_catched:
-                        continue
-                    else:
-                        query_request_catched = True
-
-                session_id = session_matcher.match(line)
-                if session_id:
-                    session_ids.add(session_id)
+                if (self.log_set_for_key.is_request_log(line)):
+                    if (line.find('<POST:/api/Query.action') != -1):
+                        if query_request_catched:
+                            continue
+                        else:
+                            query_request_catched = True
+    
+                    session_id = session_matcher.match(line)
+                    if session_id:
+                        session_ids.append(session_id)
+            
+            session_ids = Utils.remove_duplicate(session_ids)
         
         print('found sessions: ' + repr(session_ids))
-        for id in session_ids:      
-            result_file_name = self.log_set_for_key.grep_by_key(id, key + '-' + id)
-            if self.print_out:
-                print('================[' + id + ']===============')
-                Utils.print_file(result_file_name)
+        session_search_key = '|'.join(session_ids)
+        session_map = dict()
+        for s_id in session_ids:
+            session_map[s_id] = []
+        for log_set_for_session in self.log_sets_for_session:
+            result_file_name = log_set_for_session.grep_by_key(session_search_key, key + '-' + session_search_key)
+            with open(result_file_name, mode='r') as f:
+                lines = f.readlines()
+            for s_id in session_ids:
+                session_map[s_id] += filter(lambda line: line.find(s_id) != -1, lines)
         
+        outputs = []
+        for s_id in session_ids:
+            outputs.append('================[{s_id}]==============='.format(s_id=s_id))
+            outputs += session_map.get(s_id)
+            outputs.append('\r\n')
+
+        file_name = self.__build_analyst_result_file_name(key, self.log_set_for_key.meta.file_name_prefix)
+        Utils.persist(file_name, outputs)
+        if self.print_out:
+            Utils.print_file(file_name)
+        
+    def __build_analyst_result_file_name(self, key, file_name_prefix):
+        Utils.truncate(key, 30)
+        return 'results/analyst_session__{file_name_prefix}__{key}'.format(key=key, file_name_prefix=file_name_prefix) 
+
             
 class RequestFieldsAnalyst(Analyst):
     def __init__(self, meta, fields, print_out=True):
         self.log_set = LogSet(meta)
         self.fields = fields
         self.print_out = print_out
-        self.processor = LineProcessor()
         
     def __analyst(self, results):
         filtered = set()
         for result in results:
-            def format_field(field_text):
-                field_text = '[' + field_text + ']' if field_text else "[]"
-                return field_text.ljust(30)
+            def format_field(field):
+                field = '[' + field + ']' if field else "[]"
+                return field.ljust(30)
                 
-            fields = [format_field(i) for i in result['fields']]
-            #'[' + result['action'] + '] ' + 
+            fields = map(format_field, result['fields'])
             text = ' '.join(fields)
             filtered.add(text)
          
@@ -290,13 +282,13 @@ class RequestFieldsAnalyst(Analyst):
         with open(result_file_name, mode='r') as f:
             for line in f:
                 line = line.rstrip("\r\n")
-                if (self.log_set.meta.is_line_need_process(line)):
-                    matchers = []
+                if (self.log_set.is_request_log(line)):
+                    line_result = []
                     for field in self.fields:
-                        matcher = self.log_set.meta.build_field_matcher(field, line)
-                        matchers.append(matcher)
+                        matcher = self.log_set.build_field_matcher(field, line)
+                        result = matcher.match(line)
+                        line_result.append(result)
 
-                    line_result = self.processor.process(line, matchers)
                     s = '<POST:([^\|]*)'
                     s = '(?<=<POST:).*?(?=\|)'
                     results.append({'fields': line_result, 'action': Matcher(s).match(line)})

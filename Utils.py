@@ -53,4 +53,12 @@ def persist(file_name, lines):
             
 def truncate(key, max, append_to_end='...'):
     return key if len(key) <= max else key[:max] + append_to_end
+
+def remove_duplicate(list):
+    result = []
+    for l in list:
+        if l not in result:
+            result.append(l)
+            
+    return result
       

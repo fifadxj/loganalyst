@@ -8,7 +8,7 @@ parser.set_defaults(for_session=False)
 #parser.add_option("--key", metavar='KEY', dest="key", help="keyword")
 #parser.add_option("--s", metavar='SESSION_PATHS', dest="session_paths", help="logs of this session")
 parser.add_option("-q", action="store_false", dest="print_out", help="don't print out result")
-parser.add_option("-s", action="store_true", dest="for_session", help="get all logs of this session")
+parser.add_option("-s", action="store_true", dest="for_session", help="get all logs of this request")
 (options, args) = parser.parse_args()
 
 #print('options: ' + repr(options))
@@ -34,6 +34,5 @@ if (options.for_session):
     analyst.execute(key)
 else:
     key_meta = LogSetMeta.create_from_path_prefix(path)
-    upop_web_meta = LogSetMeta.create_from_path_prefix(path)
     analyst = KeySearchAnalyst(key_meta, options.print_out)
     analyst.execute(key)
