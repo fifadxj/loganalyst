@@ -61,4 +61,11 @@ def remove_duplicate(list):
             result.append(l)
             
     return result
-      
+
+def file_content(file_name):
+    content = ''
+    with open(file_name, 'r') as f:
+        for line in f:
+            content += line.strip()
+    
+    return content
